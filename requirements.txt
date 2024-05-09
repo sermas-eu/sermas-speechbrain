@@ -1,0 +1,5 @@
+speechbrain
+flask
+flask-cors
+waitress
+transformers
