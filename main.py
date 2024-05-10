@@ -1,4 +1,5 @@
 
+import datetime
 import json
 import logging
 import io
@@ -6,7 +7,7 @@ import io
 import numpy as np
 import torch
 import torchaudio
-from flask import Flask, request
+from flask import Flask, abort, render_template, request
 from flask_cors import CORS
 from speechbrain.inference.classifiers import EncoderClassifier
 from speechbrain.inference.interfaces import foreign_class
@@ -48,7 +49,6 @@ lang_classifier = EncoderClassifier.from_hparams(
     savedir="models/lang-id-commonlanguage_ecapa",
     run_opts=run_opts
 )
-
 
 def load_data(filestore):
     try:
@@ -104,6 +104,14 @@ def emotion(data):
 #     audio = load_data(data)
 #     return emotion(audio)
 
+
+@app.before_request
+def log_request_info():
+    now = datetime.datetime.now().isoformat()
+    print("[" + now + "] INFO: handling " + request.method + " request for " + request.path)
+    app.logger.debug('Headers: %s', request.path)
+
+
 @app.route('/', methods=['POST'])
 def all():
     logging.info("Classify request")
@@ -139,6 +147,13 @@ def all():
 @app.route('/', methods=['GET'])
 def hello_world():
     return 'Hello speechbrain!', 200
+
+
+@app.errorhandler(404)
+def page_not_found(e):
+    now = datetime.datetime.now().isoformat()
+    print("[" + now + "] ERROR: could not find a handler for " + request.path)
+    return { 'error': True, 'message': 'Could not find a handler for ' + request.path }, 404
 
 
 def test():
