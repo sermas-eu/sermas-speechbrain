@@ -24,6 +24,10 @@ services:
       - "traefik.http.routers.speechbrain.middlewares=speechbrain"
       - "traefik.http.middlewares.speechbrain.stripprefix.prefixes=/speechbrain"
       - "traefik.http.middlewares.speechbrain.stripprefix.forceslash=false"
+# This allow you to call the speechbrain service outside of docker compose
+    ports:
+      - 5011:5011
+# Comment the next section if you do not have an NVIDIA GPU available    
     deploy:
       resources:
         reservations:
