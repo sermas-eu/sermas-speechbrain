@@ -36,7 +36,7 @@ speaker_classifier = EncoderClassifier.from_hparams(
     run_opts=run_opts
 )
 
-emotion_calssifier = foreign_class(
+emotion_classifier = foreign_class(
     source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
     pymodule_file="custom_interface.py",
     classname="CustomEncoderWav2vec2Classifier",
@@ -78,7 +78,7 @@ def speakerid(data):
 
 
 def emotion(data):
-    output_probs, score, index, label = emotion_calssifier.classify_batch(data)
+    output_probs, score, index, label = emotion_classifier.classify_batch(data)
     logging.info(f"Emotion label: {label}, score: {score}")
     return json_result(score, label)
 
