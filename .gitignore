@@ -1,3 +1,6 @@
 /models/*
 /data
 /cache
+
+# PyCharm project files
+.idea
