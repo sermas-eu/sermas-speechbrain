@@ -1,0 +1,95 @@
+import logging
+
+import flask_cors
+from flask import Flask, request
+from waitress import serve
+
+app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024
+flask_cors.CORS(app)
+
+logging.basicConfig(level=logging.INFO)
+
+
+# def json_result(score, label):
+#     return {'label': label[0], 'score': score[0].tolist()}
+#
+#
+# def language(data):
+#     output_probs, score, index, label = lang_classifier.classify_batch(data)
+#     logging.info(f"Language label: {label}, score: {score}")
+#     return json_result(score, label)
+#
+#
+# def speakerid(data):
+#     output_probs, score, index, label = speaker_classifier.classify_batch(data)
+#     logging.info(f"SpeakerID label: {label}, score: {score}")
+#     return json_result(score, label)
+#
+#
+# def emotion(data):
+#     output_probs, score, index, label = emotion_classifier.classify_batch(data)
+#     logging.info(f"Emotion label: {label}, score: {score}")
+#     return json_result(score, label)
+
+
+
+
+
+@app.before_request
+def log_request_info():
+    app.logger.info('%s %s', request.method, request.path)
+    app.logger.debug('Headers: %s', request.path)
+
+
+# @app.route('/', methods=['POST'])
+# def all():
+#     logging.info("Classify request")
+#     try:
+#         if 'file' not in request.files:
+#             logging.warning("No file attached")
+#             return 'No file attached', 400
+#
+#         file = request.files['file']
+#         if file.filename == '':
+#             logging.warning("No file selected")
+#             return 'No file selected', 400
+#
+#         filestore = io.BytesIO()
+#         file.save(filestore)
+#         audio = load_data(filestore)
+#
+#         if audio is None:
+#             logging.warning("Cannot parse content")
+#             return 'Cannot parse content', 400
+#
+#         return json.dumps({
+#             # "language": language(audio),
+#             "emotion": emotion(audio),
+#             "speakerId": speakerid(audio)
+#         })
+#
+#     except Exception as e:
+#         logging.info(f"Error {e}")
+#         return 'Error processing request', 500
+
+
+@app.route('/', methods=['GET'])
+def hello_world():
+    return 'Hello speechbrain!', 200
+
+
+@app.errorhandler(404)
+def page_not_found(e):
+    app.logger.error('No handler found for %s', request.path)
+    return { 'error': True, 'message': 'Could not find a handler for ' + request.path }, 404
+
+
+@app.route('/separate', methods=['POST'])
+def separate():
+
+    return 'Hello speechbrain!', 200
+
+
+if __name__ == '__main__':
+    serve(app, listen='*:5011')
