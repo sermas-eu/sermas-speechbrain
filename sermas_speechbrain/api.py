@@ -4,32 +4,33 @@ import flask_cors
 from flask import Flask, request
 from waitress import serve
 
+from sermas_speechbrain import _core, _models
+
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024
 flask_cors.CORS(app)
 
 logging.basicConfig(level=logging.INFO)
 
+def _to_dict(score, label) -> dict:
+    return {'label': label[0], 'score': score[0].tolist()}
 
-# def json_result(score, label):
-#     return {'label': label[0], 'score': score[0].tolist()}
-#
-#
+
 # def language(data):
 #     output_probs, score, index, label = lang_classifier.classify_batch(data)
-#     logging.info(f"Language label: {label}, score: {score}")
+#     logging.info(f'Language label: {label}, score: {score}')
 #     return json_result(score, label)
 #
 #
 # def speakerid(data):
 #     output_probs, score, index, label = speaker_classifier.classify_batch(data)
-#     logging.info(f"SpeakerID label: {label}, score: {score}")
+#     logging.info(f'SpeakerID label: {label}, score: {score}')
 #     return json_result(score, label)
 #
 #
 # def emotion(data):
 #     output_probs, score, index, label = emotion_classifier.classify_batch(data)
-#     logging.info(f"Emotion label: {label}, score: {score}")
+#     logging.info(f'Emotion label: {label}, score: {score}')
 #     return json_result(score, label)
 
 
@@ -42,36 +43,30 @@ def log_request_info():
     app.logger.debug('Headers: %s', request.path)
 
 
-# @app.route('/', methods=['POST'])
-# def all():
-#     logging.info("Classify request")
-#     try:
-#         if 'file' not in request.files:
-#             logging.warning("No file attached")
-#             return 'No file attached', 400
-#
-#         file = request.files['file']
-#         if file.filename == '':
-#             logging.warning("No file selected")
-#             return 'No file selected', 400
-#
-#         filestore = io.BytesIO()
-#         file.save(filestore)
-#         audio = load_data(filestore)
-#
-#         if audio is None:
-#             logging.warning("Cannot parse content")
-#             return 'Cannot parse content', 400
-#
-#         return json.dumps({
-#             # "language": language(audio),
-#             "emotion": emotion(audio),
-#             "speakerId": speakerid(audio)
-#         })
-#
-#     except Exception as e:
-#         logging.info(f"Error {e}")
-#         return 'Error processing request', 500
+@app.route('/', methods=['POST'])
+def all():
+    logging.warning('DEPRECATED Classify request.')
+
+    if 'file' not in request.files:
+        return 'No file attached', 400
+
+    audiofile = request.files['file']
+    if not audiofile.filename:
+        return 'No file selected', 400
+    try:
+        audio = _core.Audio.from_file(audiofile)
+    except Exception as e:  # TODO: Exception too broad
+        return f'Error reading file {e}', 400
+
+    try:
+        return {
+            'language': _models.get_language(audio),
+            'emotion': _models.get_emotion(audio),
+            # 'speakerId': speakerid(audio),  # This cannot be done without a trained model
+            'embeddings': _models.get_embeddings(audio)
+        }
+    except Exception as e:
+        return 'Error processing request', 500
 
 
 @app.route('/', methods=['GET'])
@@ -87,7 +82,12 @@ def page_not_found(e):
 
 @app.route('/separate', methods=['POST'])
 def separate():
-
+    # # apply pretrained pipeline
+    # diarization = pipeline('audio.wav')
+    #
+    # # print the result
+    # for turn, _, speaker in diarization.itertracks(yield_label=True):
+    #     print(f'start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}')
     return 'Hello speechbrain!', 200
 
 
