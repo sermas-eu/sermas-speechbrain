@@ -32,7 +32,11 @@ if run_opts.get('device') == 'cuda':
     _diarization_pipeline.to(torch.device("cuda"))
 
 def get_n_speakers(audio: _core.Audio) -> int:
-    return 2
+    diarization = _diarization_pipeline(audio.to_dict(),
+                                        min_speakers=0,
+                                        max_speakers=3)
+    # TODO: We are throwing away a lot of info here...
+    return len(diarization.labels())
 
 
 ##############
@@ -44,13 +48,14 @@ _speaker_encoder = classifiers.EncoderClassifier.from_hparams(
     run_opts=run_opts
 )
 
-def get_embeddings(audio: _core.Audio) -> bytes:
-    if audio.sample_rate != 16000:
-        # See https://huggingface.co/speechbrain/spkrec-xvect-voxceleb
-        raise ValueError('Embedding models only works at 16kHz, '
-                         f'not {audio.sample_rate / 1000:.03f}kHz')
+def get_embeddings(audio: _core.Audio) -> str:
+    # TODO: Skipping the next check for now
+    # if audio.sample_rate != 16000:
+    #     # See https://huggingface.co/speechbrain/spkrec-xvect-voxceleb
+    #     raise ValueError('Embedding models only works at 16kHz, '
+    #                      f'not {audio.sample_rate / 1000:.03f}kHz')
     embeddings = _speaker_encoder.encode_batch(audio.waveform)
-    return pickle.dumps(embeddings)
+    return base64.standard_b64encode(pickle.dumps(embeddings)).decode()
 
 
 ##########################
@@ -65,7 +70,9 @@ _emotion_classifier = interfaces.foreign_class(
 )
 
 def get_emotion(audio: _core.Audio) -> dict:
-    return {}
+    _, score, _, label = _emotion_classifier.classify_batch(audio.waveform)
+    return {'label': label[0], 'score': score[0].tolist()}
+
 
 ##########################
 # Language classification
@@ -77,8 +84,24 @@ _language_classifier = classifiers.EncoderClassifier.from_hparams(
 )
 
 def get_language(audio: _core.Audio) -> dict:
-    return {}
+    _, score, _, label = _language_classifier.classify_batch(audio.waveform)
+    return {'label': label[0], 'score': score[0].tolist()}
 
 #########################
 # Separation
 #########################
+_n_speaker_to_separator = {
+    2: separation.SepformerSeparation.from_hparams(
+        source="speechbrain/sepformer-wsj02mix",
+        savedir='pretrained_models/sepformer-wsj02mix'
+    ),
+    3: separation.SepformerSeparation.from_hparams(
+        source="speechbrain/sepformer-wsj03mix",
+        savedir='pretrained_models/sepformer-wsj03mix'
+    )
+}
+
+def separate(audio: _core.Audio, n_speakers: int) -> str:
+    separator = _n_speaker_to_separator[n_speakers]
+    separated = separator.separate_batch(audio.waveform)
+    return base64.standard_b64encode(pickle.dumps(separated)).decode()

@@ -2,6 +2,7 @@ import logging
 
 import flask_cors
 from flask import Flask, request
+from werkzeug import exceptions
 from waitress import serve
 
 from sermas_speechbrain import _core, _models
@@ -15,26 +16,8 @@ logging.basicConfig(level=logging.INFO)
 def _to_dict(score, label) -> dict:
     return {'label': label[0], 'score': score[0].tolist()}
 
-
-# def language(data):
-#     output_probs, score, index, label = lang_classifier.classify_batch(data)
-#     logging.info(f'Language label: {label}, score: {score}')
-#     return json_result(score, label)
-#
-#
-# def speakerid(data):
-#     output_probs, score, index, label = speaker_classifier.classify_batch(data)
-#     logging.info(f'SpeakerID label: {label}, score: {score}')
-#     return json_result(score, label)
-#
-#
-# def emotion(data):
-#     output_probs, score, index, label = emotion_classifier.classify_batch(data)
-#     logging.info(f'Emotion label: {label}, score: {score}')
-#     return json_result(score, label)
-
-
-
+# TODOs:
+# - Implement DB connection
 
 
 @app.before_request
@@ -47,26 +30,30 @@ def log_request_info():
 def all():
     logging.warning('DEPRECATED Classify request.')
 
-    if 'file' not in request.files:
-        return 'No file attached', 400
-
-    audiofile = request.files['file']
-    if not audiofile.filename:
-        return 'No file selected', 400
-    try:
-        audio = _core.Audio.from_file(audiofile)
-    except Exception as e:  # TODO: Exception too broad
-        return f'Error reading file {e}', 400
+    audio = _get_audio_from_request()
 
     try:
         return {
             'language': _models.get_language(audio),
             'emotion': _models.get_emotion(audio),
             # 'speakerId': speakerid(audio),  # This cannot be done without a trained model
-            'embeddings': _models.get_embeddings(audio)
+            'embeddings': _models.get_embeddings(audio)  # TODO: Implement resample
         }
     except Exception as e:
-        return 'Error processing request', 500
+        return f'Error processing request {e}', 500
+
+
+def _get_audio_from_request():
+    if 'file' not in request.files:
+        raise exceptions.BadRequest('No file attached')
+    audiofile = request.files['file']
+    if not audiofile.filename:
+        raise exceptions.BadRequest('No file selected')
+    try:
+        audio = _core.Audio.from_file(audiofile)
+    except Exception as e:  # TODO: Exception too broad
+        raise exceptions.BadRequest(f'Error reading file {e}')
+    return audio
 
 
 @app.route('/', methods=['GET'])
@@ -82,13 +69,23 @@ def page_not_found(e):
 
 @app.route('/separate', methods=['POST'])
 def separate():
-    # # apply pretrained pipeline
-    # diarization = pipeline('audio.wav')
-    #
-    # # print the result
-    # for turn, _, speaker in diarization.itertracks(yield_label=True):
-    #     print(f'start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}')
-    return 'Hello speechbrain!', 200
+
+    audio = _get_audio_from_request()
+
+    n_speakers = request.form.get('n_speakers')
+    if n_speakers:
+        n_speakers = int(n_speakers)
+    else:
+        n_speakers = _models.get_n_speakers(audio)
+
+    if n_speakers < 2:
+        return {'n_speakers': n_speakers}, 200
+
+    if n_speakers > 3:
+        raise exceptions.BadRequest(f'{n_speakers} speakers detected. Max is 3')
+
+    signals = _models.separate(audio, n_speakers)
+    return {'signals': signals, 'n_speakers': n_speakers}, 200
 
 
 if __name__ == '__main__':

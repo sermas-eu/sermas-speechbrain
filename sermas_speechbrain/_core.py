@@ -15,3 +15,6 @@ class Audio:
     def from_file(cls, audiofile) -> Self:
         waveform, sample_rate = torchaudio.load(audiofile)
         return cls(waveform=waveform, sample_rate=sample_rate)
+
+    def to_dict(self):
+        return dataclasses.asdict(self)
