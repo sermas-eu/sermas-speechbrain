@@ -45,7 +45,7 @@ def get_n_speakers(audio: _core.Audio) -> int:
 ##############
 _speaker_encoder = classifiers.EncoderClassifier.from_hparams(
     source="speechbrain/spkrec-xvect-voxceleb",
-    savedir='models/spkrec-xvect-voxceleb',
+    savedir='speechbrain_models/spkrec-xvect-voxceleb',
     run_opts=run_opts
 )
 
@@ -66,7 +66,7 @@ _emotion_classifier = interfaces.foreign_class(
     source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
     pymodule_file="custom_interface.py",
     classname="CustomEncoderWav2vec2Classifier",
-    savedir='models/emotion-recognition-wav2vec2-IEMOCAP',
+    savedir='speechbrain_models/emotion-recognition-wav2vec2-IEMOCAP',
     run_opts=run_opts
 )
 
@@ -80,7 +80,7 @@ def get_emotion(audio: _core.Audio) -> dict:
 ##########################
 _language_classifier = classifiers.EncoderClassifier.from_hparams(
     source="speechbrain/lang-id-commonlanguage_ecapa",
-    savedir="models/lang-id-commonlanguage_ecapa",
+    savedir="speechbrain_models/lang-id-commonlanguage_ecapa",
     run_opts=run_opts
 )
 
@@ -94,11 +94,11 @@ def get_language(audio: _core.Audio) -> dict:
 _n_speaker_to_separator = {
     2: separation.SepformerSeparation.from_hparams(
         source="speechbrain/sepformer-wsj02mix",
-        savedir='pretrained_models/sepformer-wsj02mix'
+        savedir='speechbrain_models/sepformer-wsj02mix'
     ),
     3: separation.SepformerSeparation.from_hparams(
         source="speechbrain/sepformer-wsj03mix",
-        savedir='pretrained_models/sepformer-wsj03mix'
+        savedir='speechbrain_models/sepformer-wsj03mix'
     )
 }
 
