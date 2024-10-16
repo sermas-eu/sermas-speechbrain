@@ -13,4 +13,4 @@ RUN mkdir /data
 
 EXPOSE 5011
 
-CMD ["python", "main.py"]
+CMD ["flask", "--app", "sermas_speechbrain.api:app" "run", "--host=0.0.0.0", "--port=5011"]
