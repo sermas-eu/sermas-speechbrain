@@ -75,17 +75,26 @@ def separate():
     n_speakers = request.form.get('n_speakers')
     if n_speakers:
         n_speakers = int(n_speakers)
+        speaker_count = {'value': n_speakers, 'probability': 1.0}
     else:
-        n_speakers = _models.get_n_speakers(audio)
+        speaker_count = _models.get_speaker_count(audio)
+        n_speakers = speaker_count['value']
 
     if n_speakers < 2:
-        return {'n_speakers': n_speakers}, 200
+        return {'speakerCount': speaker_count}, 200
 
     if n_speakers > 3:
         raise exceptions.BadRequest(f'{n_speakers} speakers detected. Max is 3')
 
     signals = _models.separate(audio, n_speakers)
-    return {'signals': signals, 'n_speakers': n_speakers}, 200
+    return {'signals': signals, 'speakerCount': speaker_count}, 200
+
+@app.route('/count_speakers', methods=['POST'])
+def count_speakers():
+    audio = _get_audio_from_request()
+    speaker_count = _models.get_speaker_count(audio)
+    return {'speakerCount': speaker_count}, 200
+
 
 
 if __name__ == '__main__':

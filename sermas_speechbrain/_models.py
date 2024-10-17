@@ -32,12 +32,14 @@ _diarization_pipeline = pyannote.audio.Pipeline.from_pretrained(
 if run_opts.get('device') == 'cuda':
     _diarization_pipeline.to(torch.device("cuda"))
 
-def get_n_speakers(audio: _core.Audio) -> int:
+def get_speaker_count(audio: _core.Audio) -> dict:
     diarization = _diarization_pipeline(audio.to_dict(),
                                         min_speakers=0,
                                         max_speakers=3)
     # TODO: We are throwing away a lot of info here...
-    return len(diarization.labels())
+    n_speakers = len(diarization.labels())
+    score = 1 - (diarization.get_overlap().duration() / diarization.get_timeline().duration())
+    return {'value': n_speakers, 'probability': score}
 
 
 ##############
@@ -50,7 +52,7 @@ _speaker_encoder = classifiers.EncoderClassifier.from_hparams(
 )
 
 def get_embeddings(audio: _core.Audio) -> str:
-    # TODO: Skipping the next check for now
+    # TODO: Skipping the next check for now. Needs resampling
     # if audio.sample_rate != 16000:
     #     # See https://huggingface.co/speechbrain/spkrec-xvect-voxceleb
     #     raise ValueError('Embedding models only works at 16kHz, '
@@ -87,6 +89,7 @@ _language_classifier = classifiers.EncoderClassifier.from_hparams(
 def get_language(audio: _core.Audio) -> dict:
     _, score, _, label = _language_classifier.classify_batch(audio.waveform)
     return {'label': label[0], 'score': score[0].tolist()}
+
 
 #########################
 # Separation

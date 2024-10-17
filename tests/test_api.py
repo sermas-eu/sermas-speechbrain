@@ -24,6 +24,7 @@ class TestFiles:
 
 
 class APITests(unittest.TestCase):
+
     def setUp(self):
         self.context = api.app.app_context()
         self.context.push()
@@ -67,39 +68,55 @@ class APITests(unittest.TestCase):
         self.assertDictEqual({'label': 'Chinese_Hongkong', 'score': 0.36074525117874146},
                              content['language'])
 
-    def test_one_speaker(self):
+    def test_separate_one_speaker(self):
         signals = [
             TestFiles.SPEAKER1,
             TestFiles.SPEAKER2,
             TestFiles.SPEAKER3,
-            # TestFiles.SPEAKER1_W_NOISE  # TODO: This finds 2 speakers, not one
+            TestFiles.SPEAKER1_W_NOISE  # TODO: This finds 2 speakers, not one
         ]
         for s in signals:
             with self.subTest(signal=s):
                 response = self._send_file('/separate', s)
                 self.assertEqual(200, response.status_code)
                 content = response.json
-                self.assertDictEqual({'n_speakers': 1}, content)
+                self.assertDictEqual({'value': 1, 'probability': 1.0},
+                                     content['speakerCount'])
 
-    def test_three_speakers(self):
+    def test_separate_three_speakers(self):
         response = self._send_file('/separate',
                                    TestFiles.THREE_SPEAKERS_W_NOISE)
         self.assertEqual(200, response.status_code)
         content = response.json
-        self.assertEqual(3, content['n_speakers'])
+        self.assertEqual(3, content['speakerCount']['value'])
         # TODO: Implement separation check
 
 
-    def test_three_speakers_with_n_speakers(self):
+    def test_separate_three_speakers_with_n_speakers(self):
         response = self._send_file('/separate',
                                    TestFiles.THREE_SPEAKERS_W_NOISE,
                                    data={'n_speakers': 3})
         self.assertEqual(200, response.status_code)
         content = response.json
-        self.assertEqual(3, content['n_speakers'])
+        self.assertEqual(3, content['speakerCount']['value'])
         tensor_bytes = base64.standard_b64decode(content['signals'].encode())
         tensor = pickle.loads(tensor_bytes)
         self.assertIsInstance(tensor, torch.Tensor)
+        # TODO: ecc.
+
+    def test_count_speakers(self):
+        test_cases = [
+            [TestFiles.SPEAKER1, {'probability': 1.0, 'value': 1}],
+            [TestFiles.SPEAKER2, {'probability': 1.0, 'value': 1}],
+            [TestFiles.SPEAKER3, {'probability': 1.0, 'value': 1}],
+            [TestFiles.THREE_SPEAKERS_W_NOISE, {'probability': 0.05685618729096997, 'value': 2}],
+        ]
+        for s, expected_result in test_cases:
+            with self.subTest(signal=s):
+                response = self._send_file('/count_speakers', s)
+                self.assertEqual(200, response.status_code)
+                content = response.json
+                self.assertDictEqual(expected_result, content['speakerCount'])
 
 
 if __name__ == '__main__':
