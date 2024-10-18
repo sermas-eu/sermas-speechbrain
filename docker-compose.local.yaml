@@ -9,11 +9,11 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - ./data/models:/app/models
+      - ./data/models:/app/speechbrain_models
       - ./data/cache/torch:/root/.cache/torch
       - ./data/cache/huggingface:/root/.cache/huggingface
       - ./data/data/torch:/data
-      - ./main.py:/app/main.py
+      - ./sermas_speechbrain:/app/sermas_speechbrain
     networks:
       - sermas_dev
     labels:
