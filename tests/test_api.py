@@ -109,7 +109,7 @@ class APITests(unittest.TestCase):
             [TestFiles.SPEAKER1, {'probability': 1.0, 'value': 1}],
             [TestFiles.SPEAKER2, {'probability': 1.0, 'value': 1}],
             [TestFiles.SPEAKER3, {'probability': 1.0, 'value': 1}],
-            [TestFiles.THREE_SPEAKERS_W_NOISE, {'probability': 0.05685618729096997, 'value': 2}],
+            [TestFiles.THREE_SPEAKERS_W_NOISE, {'probability': 1.0, 'value': 3}],
         ]
         for s, expected_result in test_cases:
             with self.subTest(signal=s):

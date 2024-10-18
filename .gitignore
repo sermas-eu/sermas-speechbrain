@@ -4,3 +4,7 @@
 
 # PyCharm project files
 .idea
+
+__pycache__
+speechbrain_models
+wav2vec2_checkpoints

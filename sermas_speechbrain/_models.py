@@ -19,6 +19,11 @@ run_opts = {
     # "jit_module_keys": None
 }
 
+################
+# Denoising
+################
+_denoiser = separation.SepformerSeparation.from_hparams(source="speechbrain/sepformer-whamr-enhancement",
+                                                    savedir='speechbrain_models/sepformer-whamr-enhancement')
 
 ###############
 # Diarization
@@ -33,6 +38,9 @@ if run_opts.get('device') == 'cuda':
     _diarization_pipeline.to(torch.device("cuda"))
 
 def get_speaker_count(audio: _core.Audio) -> dict:
+    # sources = _denoiser.separate_batch(audio.waveform)
+    # clean_signal = sources[:, :, 0]
+    # audio = _core.Audio(waveform=clean_signal, sample_rate=audio.sample_rate)
     diarization = _diarization_pipeline(audio.to_dict(),
                                         min_speakers=0,
                                         max_speakers=3)
