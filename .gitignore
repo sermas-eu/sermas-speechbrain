@@ -8,3 +8,5 @@
 __pycache__
 speechbrain_models
 wav2vec2_checkpoints
+
+.env

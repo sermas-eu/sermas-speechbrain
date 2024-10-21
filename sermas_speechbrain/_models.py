@@ -1,11 +1,20 @@
+from dotenv import load_dotenv
 import pickle
 import base64
+import os
 import torch
 from speechbrain.inference import classifiers, interfaces, separation
 import pyannote.audio
 
-
 from sermas_speechbrain import _core
+
+load_dotenv()
+
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+if HF_TOKEN == "":
+    print("Missing HF_TOKEN env variable")
+    exit(1)
 
 
 # TODO: This can be a lot cleaner
@@ -22,32 +31,35 @@ run_opts = {
 ################
 # Denoising
 ################
-_denoiser = separation.SepformerSeparation.from_hparams(source="speechbrain/sepformer-whamr-enhancement",
-                                                    savedir='speechbrain_models/sepformer-whamr-enhancement')
+_denoiser = separation.SepformerSeparation.from_hparams(
+    source="speechbrain/sepformer-whamr-enhancement",
+    savedir="speechbrain_models/sepformer-whamr-enhancement",
+)
 
 ###############
 # Diarization
 ###############
 _diarization_pipeline = pyannote.audio.Pipeline.from_pretrained(
     "pyannote/speaker-diarization-3.1",
-    use_auth_token="HUGGINGFACE_ACCESS_TOKEN_GOES_HERE"
+    use_auth_token=HF_TOKEN,
 )
 
 # send pipeline to GPU (when available)
-if run_opts.get('device') == 'cuda':
+if run_opts.get("device") == "cuda":
     _diarization_pipeline.to(torch.device("cuda"))
+
 
 def get_speaker_count(audio: _core.Audio) -> dict:
     # sources = _denoiser.separate_batch(audio.waveform)
     # clean_signal = sources[:, :, 0]
     # audio = _core.Audio(waveform=clean_signal, sample_rate=audio.sample_rate)
-    diarization = _diarization_pipeline(audio.to_dict(),
-                                        min_speakers=0,
-                                        max_speakers=3)
+    diarization = _diarization_pipeline(audio.to_dict(), min_speakers=0, max_speakers=3)
     # TODO: We are throwing away a lot of info here...
     n_speakers = len(diarization.labels())
-    score = 1 - (diarization.get_overlap().duration() / diarization.get_timeline().duration())
-    return {'value': n_speakers, 'probability': score}
+    score = 1 - (
+        diarization.get_overlap().duration() / diarization.get_timeline().duration()
+    )
+    return {"value": n_speakers, "probability": score}
 
 
 ##############
@@ -55,9 +67,10 @@ def get_speaker_count(audio: _core.Audio) -> dict:
 ##############
 _speaker_encoder = classifiers.EncoderClassifier.from_hparams(
     source="speechbrain/spkrec-xvect-voxceleb",
-    savedir='speechbrain_models/spkrec-xvect-voxceleb',
-    run_opts=run_opts
+    savedir="speechbrain_models/spkrec-xvect-voxceleb",
+    run_opts=run_opts,
 )
+
 
 def get_embeddings(audio: _core.Audio) -> str:
     # TODO: Skipping the next check for now. Needs resampling
@@ -76,13 +89,14 @@ _emotion_classifier = interfaces.foreign_class(
     source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
     pymodule_file="custom_interface.py",
     classname="CustomEncoderWav2vec2Classifier",
-    savedir='speechbrain_models/emotion-recognition-wav2vec2-IEMOCAP',
-    run_opts=run_opts
+    savedir="speechbrain_models/emotion-recognition-wav2vec2-IEMOCAP",
+    run_opts=run_opts,
 )
+
 
 def get_emotion(audio: _core.Audio) -> dict:
     _, score, _, label = _emotion_classifier.classify_batch(audio.waveform)
-    return {'label': label[0], 'score': score[0].tolist()}
+    return {"label": label[0], "score": score[0].tolist()}
 
 
 ##########################
@@ -91,12 +105,13 @@ def get_emotion(audio: _core.Audio) -> dict:
 _language_classifier = classifiers.EncoderClassifier.from_hparams(
     source="speechbrain/lang-id-commonlanguage_ecapa",
     savedir="speechbrain_models/lang-id-commonlanguage_ecapa",
-    run_opts=run_opts
+    run_opts=run_opts,
 )
+
 
 def get_language(audio: _core.Audio) -> dict:
     _, score, _, label = _language_classifier.classify_batch(audio.waveform)
-    return {'label': label[0], 'score': score[0].tolist()}
+    return {"label": label[0], "score": score[0].tolist()}
 
 
 #########################
@@ -105,13 +120,14 @@ def get_language(audio: _core.Audio) -> dict:
 _n_speaker_to_separator = {
     2: separation.SepformerSeparation.from_hparams(
         source="speechbrain/sepformer-wsj02mix",
-        savedir='speechbrain_models/sepformer-wsj02mix'
+        savedir="speechbrain_models/sepformer-wsj02mix",
     ),
     3: separation.SepformerSeparation.from_hparams(
         source="speechbrain/sepformer-wsj03mix",
-        savedir='speechbrain_models/sepformer-wsj03mix'
-    )
+        savedir="speechbrain_models/sepformer-wsj03mix",
+    ),
 }
+
 
 def separate(audio: _core.Audio, n_speakers: int) -> str:
     separator = _n_speaker_to_separator[n_speakers]

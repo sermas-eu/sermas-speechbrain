@@ -4,3 +4,4 @@ pyannote.audio==3.3.2
 speechbrain==1.0.1
 transformers==4.45.2
 waitress==3.0.0
+python-dotenv==1.0.1

@@ -1,6 +1,7 @@
 networks:
   sermas_dev:
 
+
 services:
   speechbrain:
     image: sermas/speechbrain
@@ -14,24 +15,17 @@ services:
       - ./data/cache/huggingface:/root/.cache/huggingface
       - ./data/data/torch:/data
       - ./sermas_speechbrain:/app/sermas_speechbrain
+      - ./.env:/app/sermas_speechbrain/.env
     networks:
       - sermas_dev
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.speechbrain.rule=PathPrefix(`/speechbrain`)"
-      - "traefik.http.routers.speechbrain.service=speechbrain@docker"
-      - "traefik.http.services.speechbrain.loadbalancer.server.port=5011"
-      - "traefik.http.routers.speechbrain.middlewares=speechbrain"
-      - "traefik.http.middlewares.speechbrain.stripprefix.prefixes=/speechbrain"
-      - "traefik.http.middlewares.speechbrain.stripprefix.forceslash=false"
-# This allow you to call the speechbrain service outside of docker compose
+    # This allow you to call the speechbrain service outside of docker compose
     ports:
       - 5011:5011
-# Comment the next section if you do not have an NVIDIA GPU available    
+    # Comment the next section if you do not have an NVIDIA GPU available    
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]
+              capabilities: [ gpu ]
