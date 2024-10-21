@@ -15,6 +15,7 @@ services:
       - ./data/cache/huggingface:/root/.cache/huggingface
       - ./data/data/torch:/data
       - ./sermas_speechbrain:/app/sermas_speechbrain
+      - ./.env:/app/.env
     networks:
       - sermas_dev
     labels:
