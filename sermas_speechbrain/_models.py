@@ -18,19 +18,19 @@ dotenv.load_dotenv(_root_dir / '.env')  # This loads .env values as environment 
 # TODO: This can be a lot cleaner
 run_opts = {
     # enable CUDA
-    # "device": "cuda",
-    # "data_parallel_count": -1,
-    # "data_parallel_backend": False,
-    # "distributed_launch": False,
-    # "distributed_backend": "nccl",
-    # "jit_module_keys": None
+    # 'device': 'cuda',
+    # 'data_parallel_count': -1,
+    # 'data_parallel_backend': False,
+    # 'distributed_launch': False,
+    # 'distributed_backend': 'nccl',
+    # 'jit_module_keys': None
 }
 
 ################
 # Denoising
 ################
 _denoiser = separation.SepformerSeparation.from_hparams(
-    source="speechbrain/sepformer-whamr-enhancement",
+    source='speechbrain/sepformer-whamr-enhancement',
     savedir='speechbrain_models/sepformer-whamr-enhancement'
 )
 
@@ -53,12 +53,13 @@ if _diarization_service == 'local':
         return {'value': n_speakers, 'probability': 0.85}
 elif _diarization_service == 'pyannote':
     _diarization_pipeline = pyannote.audio.Pipeline.from_pretrained(
-        "pyannote/speaker-diarization-3.1",
+        'pyannote/speaker-diarization-3.1',
+        # TODO: Token seems useless (any string works). Leaving it here just for safety.
         use_auth_token=os.environ['HUGGINGFACE_TOKEN']
     )
     # send pipeline to GPU (when available)
     if run_opts.get('device') == 'cuda':
-        _diarization_pipeline.to(torch.device("cuda"))
+        _diarization_pipeline.to(torch.device('cuda'))
     def _get_speaker_count(audio: _core.Audio) -> dict:
         # NOTE: Denoising is not really working. Commenting out for now.
         # sources = _denoiser.separate_batch(audio.waveform)
@@ -87,7 +88,7 @@ def get_speaker_count(audio: _core.Audio) -> dict:
 # Embeddings
 ##############
 _speaker_encoder = classifiers.EncoderClassifier.from_hparams(
-    source="speechbrain/spkrec-xvect-voxceleb",
+    source='speechbrain/spkrec-xvect-voxceleb',
     savedir='speechbrain_models/spkrec-xvect-voxceleb',
     run_opts=run_opts
 )
@@ -107,9 +108,9 @@ def get_embeddings(audio: _core.Audio) -> str:
 # Emotion classification
 ##########################
 _emotion_classifier = interfaces.foreign_class(
-    source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
-    pymodule_file="custom_interface.py",
-    classname="CustomEncoderWav2vec2Classifier",
+    source='speechbrain/emotion-recognition-wav2vec2-IEMOCAP',
+    pymodule_file='custom_interface.py',
+    classname='CustomEncoderWav2vec2Classifier',
     savedir='speechbrain_models/emotion-recognition-wav2vec2-IEMOCAP',
     run_opts=run_opts
 )
@@ -124,8 +125,8 @@ def get_emotion(audio: _core.Audio) -> dict:
 # Language classification
 ##########################
 _language_classifier = classifiers.EncoderClassifier.from_hparams(
-    source="speechbrain/lang-id-commonlanguage_ecapa",
-    savedir="speechbrain_models/lang-id-commonlanguage_ecapa",
+    source='speechbrain/lang-id-commonlanguage_ecapa',
+    savedir='speechbrain_models/lang-id-commonlanguage_ecapa',
     run_opts=run_opts
 )
 
@@ -140,11 +141,11 @@ def get_language(audio: _core.Audio) -> dict:
 #########################
 _n_speaker_to_separator = {
     2: separation.SepformerSeparation.from_hparams(
-        source="speechbrain/sepformer-wsj02mix",
+        source='speechbrain/sepformer-wsj02mix',
         savedir='speechbrain_models/sepformer-wsj02mix'
     ),
     3: separation.SepformerSeparation.from_hparams(
-        source="speechbrain/sepformer-wsj03mix",
+        source='speechbrain/sepformer-wsj03mix',
         savedir='speechbrain_models/sepformer-wsj03mix'
     )
 }

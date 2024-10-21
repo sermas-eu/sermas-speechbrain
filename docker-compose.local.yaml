@@ -1,7 +1,6 @@
 networks:
   sermas_dev:
 
-
 services:
   speechbrain:
     image: sermas/speechbrain
@@ -15,7 +14,7 @@ services:
       - ./data/cache/huggingface:/root/.cache/huggingface
       - ./data/data/torch:/data
       - ./sermas_speechbrain:/app/sermas_speechbrain
-      - ./.env:/app/sermas_speechbrain/.env
+      - ./.env:/app/.env
     networks:
       - sermas_dev
     # This allow you to call the speechbrain service outside of docker compose
