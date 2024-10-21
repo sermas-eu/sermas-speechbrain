@@ -8,6 +8,7 @@ ADD requirements.txt .
 RUN pip install -r requirements.txt
 
 ADD sermas_speechbrain ./sermas_speechbrain
+ADD .env .
 
 RUN mkdir /data
 

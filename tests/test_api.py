@@ -80,8 +80,7 @@ class APITests(unittest.TestCase):
                 response = self._send_file('/separate', s)
                 self.assertEqual(200, response.status_code)
                 content = response.json
-                self.assertDictEqual({'value': 1, 'probability': 1.0},
-                                     content['speakerCount'])
+                self.assertEqual(1, content['speakerCount']['value'])
 
     def test_separate_three_speakers(self):
         response = self._send_file('/separate',
@@ -106,17 +105,17 @@ class APITests(unittest.TestCase):
 
     def test_count_speakers(self):
         test_cases = [
-            [TestFiles.SPEAKER1, {'probability': 1.0, 'value': 1}],
-            [TestFiles.SPEAKER2, {'probability': 1.0, 'value': 1}],
-            [TestFiles.SPEAKER3, {'probability': 1.0, 'value': 1}],
-            [TestFiles.THREE_SPEAKERS_W_NOISE, {'probability': 1.0, 'value': 3}],
+            [TestFiles.SPEAKER1, 1],
+            [TestFiles.SPEAKER2, 1],
+            [TestFiles.SPEAKER3, 1],
+            [TestFiles.THREE_SPEAKERS_W_NOISE, 3],
         ]
         for s, expected_result in test_cases:
             with self.subTest(signal=s):
                 response = self._send_file('/count_speakers', s)
                 self.assertEqual(200, response.status_code)
                 content = response.json
-                self.assertDictEqual(expected_result, content['speakerCount'])
+                self.assertEqual(expected_result, content['speakerCount']['value'])
 
 
 if __name__ == '__main__':

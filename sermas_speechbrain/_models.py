@@ -1,11 +1,18 @@
-import pickle
 import base64
+import os
+import pathlib
+import pickle
+
+import dotenv
+import numpy as np
+import pyannote.audio
 import torch
 from speechbrain.inference import classifiers, interfaces, separation
-import pyannote.audio
-
 
 from sermas_speechbrain import _core
+
+_root_dir = pathlib.Path(__file__).parents[1]
+dotenv.load_dotenv(_root_dir / '.env')  # This loads .env values as environment variable
 
 
 # TODO: This can be a lot cleaner
@@ -22,32 +29,58 @@ run_opts = {
 ################
 # Denoising
 ################
-_denoiser = separation.SepformerSeparation.from_hparams(source="speechbrain/sepformer-whamr-enhancement",
-                                                    savedir='speechbrain_models/sepformer-whamr-enhancement')
+_denoiser = separation.SepformerSeparation.from_hparams(
+    source="speechbrain/sepformer-whamr-enhancement",
+    savedir='speechbrain_models/sepformer-whamr-enhancement'
+)
 
 ###############
 # Diarization
 ###############
-_diarization_pipeline = pyannote.audio.Pipeline.from_pretrained(
-    "pyannote/speaker-diarization-3.1",
-    use_auth_token="HUGGINGFACE_ACCESS_TOKEN_GOES_HERE"
-)
+_diarization_service = os.environ.get('DIARIZATION_SERVICE', '').lower()
+if _diarization_service == 'local':
+    def _get_speaker_count(audio: _core.Audio) -> dict:
+        # TODO: This is NOT a speaker counter but rather a noise checker.
+        # basically, if the background signal is too loud, it will classify two speakers
+        # probability values are just placeholders
+        np_waveform = audio.waveform.numpy()
+        silence_threshold, peak_threshold = np.quantile(np.abs(np_waveform), [0.5, 0.95])
+        ratio = silence_threshold / peak_threshold
+        if ratio > 0.15:
+            n_speakers = 2
+        else:
+            n_speakers = 1
+        return {'value': n_speakers, 'probability': 0.85}
+elif _diarization_service == 'pyannote':
+    _diarization_pipeline = pyannote.audio.Pipeline.from_pretrained(
+        "pyannote/speaker-diarization-3.1",
+        use_auth_token=os.environ['HUGGINGFACE_TOKEN']
+    )
+    # send pipeline to GPU (when available)
+    if run_opts.get('device') == 'cuda':
+        _diarization_pipeline.to(torch.device("cuda"))
+    def _get_speaker_count(audio: _core.Audio) -> dict:
+        # NOTE: Denoising is not really working. Commenting out for now.
+        # sources = _denoiser.separate_batch(audio.waveform)
+        # clean_signal = sources[:, :, 0]
+        # audio = _core.Audio(waveform=clean_signal, sample_rate=audio.sample_rate)
+        diarization = _diarization_pipeline(audio.to_dict(),
+                                            min_speakers=0,
+                                            max_speakers=3)
+        # TODO: We are throwing away a lot of info here...
+        n_speakers = len(diarization.labels())
+        score = 1 - (diarization.get_overlap().duration() / diarization.get_timeline().duration())
+        return {'value': n_speakers, 'probability': score}
+elif _diarization_service != '':
+    # TODO: There is an alternative diarizer here, but it is not as easy to use as pyannote.
+    # Integration looks more cumbersome.
+    # https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb
+    raise ValueError(f'Unsupported diarization service "{_diarization_service}". '
+                     f'Use `local` or `pyannote`')
 
-# send pipeline to GPU (when available)
-if run_opts.get('device') == 'cuda':
-    _diarization_pipeline.to(torch.device("cuda"))
 
 def get_speaker_count(audio: _core.Audio) -> dict:
-    # sources = _denoiser.separate_batch(audio.waveform)
-    # clean_signal = sources[:, :, 0]
-    # audio = _core.Audio(waveform=clean_signal, sample_rate=audio.sample_rate)
-    diarization = _diarization_pipeline(audio.to_dict(),
-                                        min_speakers=0,
-                                        max_speakers=3)
-    # TODO: We are throwing away a lot of info here...
-    n_speakers = len(diarization.labels())
-    score = 1 - (diarization.get_overlap().duration() / diarization.get_timeline().duration())
-    return {'value': n_speakers, 'probability': score}
+    return _get_speaker_count(audio)
 
 
 ##############
