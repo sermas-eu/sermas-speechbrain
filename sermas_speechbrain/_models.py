@@ -92,6 +92,7 @@ _speaker_encoder = classifiers.EncoderClassifier.from_hparams(
     run_opts=run_opts
 )
 
+
 def get_embeddings(audio: _core.Audio) -> str:
     # TODO: Skipping the next check for now. Needs resampling
     # if audio.sample_rate != 16000:
@@ -113,6 +114,7 @@ _emotion_classifier = interfaces.foreign_class(
     run_opts=run_opts
 )
 
+
 def get_emotion(audio: _core.Audio) -> dict:
     _, score, _, label = _emotion_classifier.classify_batch(audio.waveform)
     return {'label': label[0], 'score': score[0].tolist()}
@@ -126,6 +128,7 @@ _language_classifier = classifiers.EncoderClassifier.from_hparams(
     savedir="speechbrain_models/lang-id-commonlanguage_ecapa",
     run_opts=run_opts
 )
+
 
 def get_language(audio: _core.Audio) -> dict:
     _, score, _, label = _language_classifier.classify_batch(audio.waveform)
@@ -145,6 +148,7 @@ _n_speaker_to_separator = {
         savedir='speechbrain_models/sepformer-wsj03mix'
     )
 }
+
 
 def separate(audio: _core.Audio, n_speakers: int) -> str:
     separator = _n_speaker_to_separator[n_speakers]
