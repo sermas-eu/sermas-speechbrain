@@ -27,7 +27,7 @@ run_opts = {
 }
 
 # defaults to GPU
-if os.environ["USE_GPU"] == "0":
+if "USE_GPU" in os.environ.keys() and os.environ["USE_GPU"] == "0":
     print("Using CPU")
     run_opts = {}
 else:
