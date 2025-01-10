@@ -1,6 +1,7 @@
 networks:
   sermas_dev:
-
+    external: true
+    
 services:
   speechbrain:
     image: sermas/speechbrain
@@ -14,6 +15,7 @@ services:
       - ./data/cache/huggingface:/root/.cache/huggingface
       - ./data/data/torch:/data
       - ./sermas_speechbrain:/app/sermas_speechbrain
+      - ./tests:/app/tests
       - ./.env:/app/.env
     networks:
       - sermas_dev

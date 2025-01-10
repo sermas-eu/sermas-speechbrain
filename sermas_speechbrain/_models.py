@@ -1,4 +1,5 @@
 import base64
+from io import BytesIO
 import os
 import pathlib
 import pickle
@@ -38,7 +39,7 @@ else:
 ################
 _denoiser = separation.SepformerSeparation.from_hparams(
     source="speechbrain/sepformer-whamr-enhancement",
-    savedir="speechbrain_models/sepformer-whamr-enhancement",
+    savedir="/app/speechbrain_models/sepformer-whamr-enhancement",
 )
 
 ###############
@@ -68,8 +69,10 @@ elif _diarization_service == "pyannote":
         # TODO: Token seems useless (any string works). Leaving it here just for safety.
         use_auth_token=os.environ["HUGGINGFACE_TOKEN"],
     )
+    if _diarization_pipeline is None:
+        raise ValueError("pipeline not initialized")
     # send pipeline to GPU (when available)
-    if run_opts.get("device") == "cuda":
+    if _diarization_pipeline is not None and run_opts.get("device") == "cuda":
         _diarization_pipeline.to(torch.device("cuda"))
 
     def _get_speaker_count(audio: _core.Audio) -> dict:
@@ -105,21 +108,52 @@ def get_speaker_count(audio: _core.Audio) -> dict:
 # Embeddings
 ##############
 _speaker_encoder = classifiers.EncoderClassifier.from_hparams(
-    source="speechbrain/spkrec-xvect-voxceleb",
-    savedir="speechbrain_models/spkrec-xvect-voxceleb",
+    # source="speechbrain/spkrec-xvect-voxceleb",
+    source="speechbrain/spkrec-ecapa-voxceleb",
+    savedir="/app/speechbrain_models",
     run_opts=run_opts,
 )
 
+SIMILARITY_THRESHOLD=0.25
+cosine_similarity = torch.nn.CosineSimilarity(dim=-1, eps=1e-6)
 
-def get_embeddings(audio: _core.Audio) -> str:
+def compute_embedding(audio: _core.Audio) -> torch.Tensor:
+    return _speaker_encoder.encode_batch(audio.waveform)
+
+def similarity(ref_embedding: torch.Tensor, audio_embedding: torch.Tensor) -> float:
+    s = cosine_similarity(audio_embedding, ref_embedding)
+    return float(s[0])
+
+def embedding_to_base64(audio_embedding: torch.Tensor) -> str:
     # TODO: Skipping the next check for now. Needs resampling
     # if audio.sample_rate != 16000:
     #     # See https://huggingface.co/speechbrain/spkrec-xvect-voxceleb
     #     raise ValueError('Embedding models only works at 16kHz, '
     #                      f'not {audio.sample_rate / 1000:.03f}kHz')
-    embeddings = _speaker_encoder.encode_batch(audio.waveform)
-    return base64.standard_b64encode(pickle.dumps(embeddings)).decode()
+    buffer = BytesIO()
+    torch.save(audio_embedding, buffer)
+    b64 = base64.standard_b64encode(buffer.getvalue()).decode()
+    return b64
 
+def embedding_from_base64(ref_embedding_base64: str) -> torch.Tensor | None:
+    if ref_embedding_base64 is None or ref_embedding_base64 == "":
+        return None
+    buffer = BytesIO(base64.standard_b64decode(ref_embedding_base64))
+    return torch.load(buffer, weights_only=True)
+
+def similarity_matrix(embeddings: list):
+    vector = [embedding_from_base64(e) for e in embeddings]
+    n = len(vector)
+    matrix = [[0] * n for _ in range(n)]
+    
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                matrix[i][j]  = 1.0
+                continue
+            matrix[i][j] = similarity(vector[i], vector[j])
+    
+    return matrix
 
 ##########################
 # Emotion classification
@@ -128,7 +162,7 @@ _emotion_classifier = interfaces.foreign_class(
     source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
     pymodule_file="custom_interface.py",
     classname="CustomEncoderWav2vec2Classifier",
-    savedir="speechbrain_models/emotion-recognition-wav2vec2-IEMOCAP",
+    savedir="/app/speechbrain_models/emotion-recognition-wav2vec2-IEMOCAP",
     run_opts=run_opts,
 )
 
@@ -143,7 +177,7 @@ def get_emotion(audio: _core.Audio) -> dict:
 ##########################
 _language_classifier = classifiers.EncoderClassifier.from_hparams(
     source="speechbrain/lang-id-commonlanguage_ecapa",
-    savedir="speechbrain_models/lang-id-commonlanguage_ecapa",
+    savedir="/app/speechbrain_models/lang-id-commonlanguage_ecapa",
     run_opts=run_opts,
 )
 
@@ -159,11 +193,11 @@ def get_language(audio: _core.Audio) -> dict:
 _n_speaker_to_separator = {
     2: separation.SepformerSeparation.from_hparams(
         source="speechbrain/sepformer-wsj02mix",
-        savedir="speechbrain_models/sepformer-wsj02mix",
+        savedir="/app/speechbrain_models/sepformer-wsj02mix",
     ),
     3: separation.SepformerSeparation.from_hparams(
         source="speechbrain/sepformer-wsj03mix",
-        savedir="speechbrain_models/sepformer-wsj03mix",
+        savedir="/app/speechbrain_models/sepformer-wsj03mix",
     ),
 }
 
