@@ -1,15 +1,15 @@
 import base64
-from io import BytesIO
 import os
 import pathlib
 import pickle
+from io import BytesIO
 
 import dotenv
 import numpy as np
 import pyannote.audio
 import torch
 from speechbrain.inference import classifiers, interfaces, separation
-import os
+
 from sermas_speechbrain import _core
 
 _root_dir = pathlib.Path(__file__).parents[1]
