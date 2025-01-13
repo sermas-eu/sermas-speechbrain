@@ -1,5 +1,5 @@
 import logging
-
+import json
 import flask_cors
 from flask import Flask, request
 from werkzeug import exceptions
@@ -37,10 +37,9 @@ def all():
             'language': _models.get_language(audio),
             'emotion': _models.get_emotion(audio),
             # 'speakerId': speakerid(audio),  # This cannot be done without a trained model
-            'embeddings': _models.get_embeddings(audio)  # TODO: Implement resample
         }
     except Exception as e:
-        return f'Error processing request {e}', 500
+        return f'Error processing classify request {e}', 500
 
 
 def _get_audio_from_request():
@@ -95,7 +94,48 @@ def count_speakers():
     speaker_count = _models.get_speaker_count(audio)
     return {'speakerCount': speaker_count}, 200
 
+@app.route('/verify_speakers', methods=['POST'])
+def verify_speakers():
+    try:
+        audio = _get_audio_from_request()
+        audio_embedding = _models.compute_embedding(audio)
+        
+        embeddings = request.form.get('embeddings')
+        ref_embeddings_base64 = json.loads(embeddings)
+        res = []
+        for emb in ref_embeddings_base64:
+            if emb == "":
+                res.append(None)
+                continue
+            ref_embeddings = _models.embedding_from_base64(emb)
+            res.append(_models.similarity(ref_embeddings, audio_embedding))
 
+        return {'similarities': res, "embeddings":  _models.embedding_to_base64(audio_embedding) }, 200
+    except Exception as e:
+        print(e)
+        return f'Error processing verify request {e}', 500
+
+@app.route('/similarity_matrix', methods=['POST'])
+def similarity_matrix():
+    try:
+        embeddings = request.form.get('embeddings')
+        matrix = _models.similarity_matrix(json.loads(embeddings))
+        return {'similarity_matrix': matrix}, 200
+    except Exception as e:
+        return f'Error processing verify request {e}', 500
+    
+@app.route('/create_embeddings', methods=['POST'])
+def create_embeddings():
+
+    audio = _get_audio_from_request()
+
+    try:
+        audio_embedding = _models.compute_embedding(audio)
+        return {
+            'embeddings': _models.embedding_to_base64(audio_embedding),  # TODO: Implement resample
+        }
+    except Exception as e:
+        return f'Error processing create embedding request {e}', 500
 
 if __name__ == '__main__':
     serve(app, listen='*:5011')
