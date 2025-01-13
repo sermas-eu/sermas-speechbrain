@@ -136,7 +136,7 @@ def embedding_to_base64(audio_embedding: torch.Tensor) -> str:
     return b64
 
 def embedding_from_base64(ref_embedding_base64: str) -> torch.Tensor | None:
-    if ref_embedding_base64 is None or ref_embedding_base64 == "":
+    if not ref_embedding_base64:
         return None
     buffer = BytesIO(base64.standard_b64decode(ref_embedding_base64))
     return torch.load(buffer, weights_only=True)
