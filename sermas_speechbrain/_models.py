@@ -141,17 +141,15 @@ def embedding_from_base64(ref_embedding_base64: str) -> torch.Tensor | None:
     buffer = BytesIO(base64.standard_b64decode(ref_embedding_base64))
     return torch.load(buffer, weights_only=True)
 
-def similarity_matrix(embeddings: list):
+def similarity_matrix(embeddings: list) -> list[list[float]]:
     vector = [embedding_from_base64(e) for e in embeddings]
     n = len(vector)
-    matrix = [[0] * n for _ in range(n)]
+    matrix = [[1.0] * n for _ in range(n)]  # n x n matrix of ones
     
     for i in range(n):
-        for j in range(n):
-            if i == j:
-                matrix[i][j]  = 1.0
-                continue
+        for j in range(i):  # computing only lower triangle
             matrix[i][j] = similarity(vector[i], vector[j])
+            matrix[j][i] = matrix[i][j]  # matrix is symmetric
     
     return matrix
 
