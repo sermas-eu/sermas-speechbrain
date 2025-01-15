@@ -9,11 +9,18 @@ import numpy as np
 import pyannote.audio
 import torch
 from speechbrain.inference import classifiers, interfaces, separation
+import os.path
 
 from sermas_speechbrain import _core
 
 _root_dir = pathlib.Path(__file__).parents[1]
+_config_dir = os.path.join(_root_dir, "config")
+
 dotenv.load_dotenv(_root_dir / ".env")  # This loads .env values as environment variable
+
+# Load from ./config path
+if os.path.isdir(_config_dir):
+    dotenv.load_dotenv(_config_dir / ".env")
 
 
 # TODO: This can be a lot cleaner
@@ -114,15 +121,18 @@ _speaker_encoder = classifiers.EncoderClassifier.from_hparams(
     run_opts=run_opts,
 )
 
-SIMILARITY_THRESHOLD=0.25
+SIMILARITY_THRESHOLD = 0.25
 cosine_similarity = torch.nn.CosineSimilarity(dim=-1, eps=1e-6)
+
 
 def compute_embedding(audio: _core.Audio) -> torch.Tensor:
     return _speaker_encoder.encode_batch(audio.waveform)
 
+
 def similarity(ref_embedding: torch.Tensor, audio_embedding: torch.Tensor) -> float:
     s = cosine_similarity(audio_embedding, ref_embedding)
     return float(s[0])
+
 
 def embedding_to_base64(audio_embedding: torch.Tensor) -> str:
     # TODO: Skipping the next check for now. Needs resampling
@@ -135,23 +145,26 @@ def embedding_to_base64(audio_embedding: torch.Tensor) -> str:
     b64 = base64.standard_b64encode(buffer.getvalue()).decode()
     return b64
 
+
 def embedding_from_base64(ref_embedding_base64: str) -> torch.Tensor | None:
     if not ref_embedding_base64:
         return None
     buffer = BytesIO(base64.standard_b64decode(ref_embedding_base64))
     return torch.load(buffer, weights_only=True)
 
+
 def similarity_matrix(embeddings: list) -> list[list[float]]:
     vector = [embedding_from_base64(e) for e in embeddings]
     n = len(vector)
     matrix = [[1.0] * n for _ in range(n)]  # n x n matrix of ones
-    
+
     for i in range(n):
         for j in range(i):  # computing only lower triangle
             matrix[i][j] = similarity(vector[i], vector[j])
             matrix[j][i] = matrix[i][j]  # matrix is symmetric
-    
+
     return matrix
+
 
 ##########################
 # Emotion classification

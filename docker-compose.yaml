@@ -18,18 +18,10 @@ services:
       - ./.env:/app/.env
     networks:
       - sermas_dev
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.speechbrain.rule=PathPrefix(`/speechbrain`)"
-      - "traefik.http.routers.speechbrain.service=speechbrain@docker"
-      - "traefik.http.services.speechbrain.loadbalancer.server.port=5011"
-      - "traefik.http.routers.speechbrain.middlewares=speechbrain"
-      - "traefik.http.middlewares.speechbrain.stripprefix.prefixes=/speechbrain"
-      - "traefik.http.middlewares.speechbrain.stripprefix.forceslash=false"
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]
+              capabilities: [ gpu ]
