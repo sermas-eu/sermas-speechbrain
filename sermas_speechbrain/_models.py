@@ -52,7 +52,8 @@ _denoiser = separation.SepformerSeparation.from_hparams(
 ###############
 # Diarization
 ###############
-_diarization_service = os.environ.get("DIARIZATION_SERVICE", "").lower()
+_diarization_service = os.environ.get("DIARIZATION_SERVICE", "local").lower()
+
 if _diarization_service == "local":
 
     def _get_speaker_count(audio: _core.Audio) -> dict:
