@@ -13,4 +13,8 @@ RUN mkdir /data
 
 EXPOSE 5011
 
+ENV TORCH_HOME=/cache/torch
+ENV HF_HOME=/cache/hf
+
+
 CMD ["python", "-m", "flask", "--app", "sermas_speechbrain.api:app", "run", "--host=0.0.0.0", "--port=5011"]
