@@ -16,11 +16,13 @@ from sermas_speechbrain import _core
 _root_dir = pathlib.Path(__file__).parents[1]
 _config_dir = os.path.join(_root_dir, "config")
 
-dotenv.load_dotenv(_root_dir / ".env")  # This loads .env values as environment variable
+dotenv.load_dotenv(
+    os.path.join(_root_dir, ".env")
+)  # This loads .env values as environment variable
 
 # Load from ./config path
 if os.path.isdir(_config_dir):
-    dotenv.load_dotenv(_config_dir / ".env")
+    dotenv.load_dotenv(os.path.join(_config_dir, ".env"))
 
 
 # TODO: This can be a lot cleaner
