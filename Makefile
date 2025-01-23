@@ -1,18 +1,23 @@
 
 FILEPATH?=test.wav
-DOCKER_COMPOSE_CMD=docker compose
+DOCKER_COMPOSE_CMD=docker compose -f docker-compose.yaml
 
 build:
-	$(DOCKER_COMPOSE_CMD) -f docker-compose.local.yaml build
+	$(DOCKER_COMPOSE_CMD) build
 
-dev:
-	$(DOCKER_COMPOSE_CMD) -f docker-compose.local.yaml run --rm speechbrain
+stop:
+	$(DOCKER_COMPOSE_CMD) kill speechbrain || true
+	$(DOCKER_COMPOSE_CMD) rm -f speechbrain || true
 
-serve:
-	$(DOCKER_COMPOSE_CMD) -f docker-compose.local.yaml run --rm -p 5011:5011 speechbrain
+start: stop
+	$(DOCKER_COMPOSE_CMD) up speechbrain
 
 sh:
-	$(DOCKER_COMPOSE_CMD) -f docker-compose.local.yaml run --entrypoint bash --rm speechbrain
+	$(DOCKER_COMPOSE_CMD) run --entrypoint bash --rm speechbrain
 
 req:
 	curl --form file='@${FILEPATH}' http://localhost:5011
+
+setup:
+	python3 -m venv .venv
+	./.venv/bin/pip3 install -r requirements.txt
