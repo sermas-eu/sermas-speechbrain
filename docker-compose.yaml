@@ -10,14 +10,16 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - ./data/models:/app/speechbrain_models
-      - ./data/cache/torch:/root/.cache/torch
-      - ./data/cache/huggingface:/root/.cache/huggingface
-      - ./data/data/torch:/data
+      - ./data/cache:/cache
+
       - ./sermas_speechbrain:/app/sermas_speechbrain
+      - ./tests:/app/tests
       - ./.env:/app/.env
     networks:
       - sermas_dev
+    ports:
+      - 5011:5011
+    # Comment the next section if you do not have an NVIDIA GPU available    
     deploy:
       resources:
         reservations:

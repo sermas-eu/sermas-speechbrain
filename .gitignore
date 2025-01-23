@@ -10,3 +10,4 @@ speechbrain_models
 wav2vec2_checkpoints
 
 .env
+.venv
