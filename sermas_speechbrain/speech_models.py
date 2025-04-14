@@ -28,7 +28,7 @@ class SpeechModelWrapper:
             "jit_module_keys": None,
         }
 
-        use_gpu = False
+        use_gpu = True
         # defaults to GPU
         if os.environ.get("USE_GPU") == "0":
             use_gpu = False
