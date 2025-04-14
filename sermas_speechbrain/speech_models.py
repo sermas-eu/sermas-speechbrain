@@ -31,9 +31,11 @@ class SpeechModelWrapper:
         use_gpu = True
         # defaults to GPU
         if os.environ.get("USE_GPU") == "0":
+            self.logger.info("GPU disabled")
             use_gpu = False
 
         if "USE_GPU" not in os.environ.keys():
+            self.logger.info("GPU requested")
             if not torch.cuda.is_available() or torch.cuda.device_count() == 0:
                 self.logger.warning("GPU is not available, reverting to CPU")
                 use_gpu = False
