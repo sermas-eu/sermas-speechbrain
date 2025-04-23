@@ -11,7 +11,6 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./data/cache:/cache
-
       - ./sermas_speechbrain:/app/sermas_speechbrain
       - ./tests:/app/tests
       - ./.env:/app/.env
