@@ -21,3 +21,7 @@ req:
 setup:
 	python3 -m venv .venv
 	./.venv/bin/pip3 install -r requirements.txt
+
+push:
+	docker tag sermas/speechbrain ghcr.io/sermas-eu/speechbrain:test
+	docker push ghcr.io/sermas-eu/speechbrain:test
