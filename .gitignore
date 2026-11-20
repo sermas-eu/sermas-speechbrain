@@ -11,3 +11,4 @@ wav2vec2_checkpoints
 
 .env
 .venv
+.agents/
