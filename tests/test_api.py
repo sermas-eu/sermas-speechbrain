@@ -1,122 +1,143 @@
-import base64
-import hashlib
-import pathlib
-import pickle
-import unittest
-from typing import Union, Optional
+"""The endpoints sermas-api calls: classify (`POST /`) and the identity tracker's
+`/create_embeddings`, `/verify_speakers`, `/similarity_matrix`.
 
-import torch
-import werkzeug.test
+Checks hold across CPU/GPU and library versions: labels, shapes and ranges, and the
+ordering of similarities (same speaker above other speakers), not exact scores.
+"""
+
+import base64
+import io
+import json
+import pathlib
+import unittest
 
 from sermas_speechbrain import api
 
-_current_folder = pathlib.Path(__file__).parent
-_data_folder = _current_folder / 'data'
+DATA = pathlib.Path(__file__).parent / "data"
+SUFFIX = "-251-136532-0015_1993-147965-0008_7976-110124-0014.wav"
+S1_NOISE = DATA / f"02-s1_with_noise{SUFFIX}"
+NOISE = DATA / f"03-noise_only{SUFFIX}"
+S1 = DATA / f"04-s1_only{SUFFIX}"
+S2 = DATA / f"05-s2_only{SUFFIX}"
+S3 = DATA / f"06-s3_only{SUFFIX}"
 
-
-class TestFiles:
-    THREE_SPEAKERS_W_NOISE = _data_folder / '01-s1s2s3_with_noise-251-136532-0015_1993-147965-0008_7976-110124-0014.wav'
-    SPEAKER1_W_NOISE = _data_folder / '02-s1_with_noise-251-136532-0015_1993-147965-0008_7976-110124-0014.wav'
-    NOISE = _data_folder / '03-noise_only-251-136532-0015_1993-147965-0008_7976-110124-0014.wav'
-    SPEAKER1 = _data_folder / '04-s1_only-251-136532-0015_1993-147965-0008_7976-110124-0014.wav'
-    SPEAKER2 = _data_folder / '05-s2_only-251-136532-0015_1993-147965-0008_7976-110124-0014.wav'
-    SPEAKER3 = _data_folder / '06-s3_only-251-136532-0015_1993-147965-0008_7976-110124-0014.wav'
+# the IEMOCAP model's classes
+EMOTIONS = {"neu", "ang", "hap", "sad"}
 
 
 class APITests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = api.app.test_client()
+        cls._embeddings = {}
 
-    def setUp(self):
-        self.context = api.app.app_context()
-        self.context.push()
-        self.client = api.app.test_client()
-
-    def tearDown(self):
-        self.context.pop()
-
-    def _send_file(
-            self,
-            endpoint: str,
-            audiofile: Union[str, pathlib.Path],
-            data: Optional[dict] = None
-    ) -> werkzeug.test.TestResponse:
-        data = data or {}
-        with open(audiofile, 'rb') as f:
-            data['file'] = (f, str(audiofile))
+    def post(self, endpoint, audio=None, **form):
+        data = dict(form)
+        if audio is not None:
+            data["file"] = (open(audio, "rb"), audio.name)
+        try:
             return self.client.post(
-                endpoint,
-                data=data,
-                follow_redirects=True,
-                content_type='multipart/form-data'
+                endpoint, data=data, content_type="multipart/form-data"
             )
+        finally:
+            if audio is not None:
+                data["file"][0].close()
 
-    def test_hello_speechbrain(self):
-        response = self.client.get('/')
-        self.assertEqual(200, response.status_code)
-        self.assertEqual('Hello speechbrain!', response.get_data(as_text=True))
+    def embedding(self, audio) -> str:
+        if audio not in self._embeddings:
+            res = self.post("/create_embeddings", audio)
+            self.assertEqual(200, res.status_code, res.get_data(as_text=True))
+            self._embeddings[audio] = res.json["embeddings"]
+        return self._embeddings[audio]
 
-    def test_root_endpoint(self):
-        # NOTE: This endpoint is deprecated. Testing just for backward compatibility
-        response = self._send_file('/', TestFiles.SPEAKER1)
-        self.assertEqual(200, response.status_code)
-        content = response.json
-        # TODO: The encoding process is not deterministic. It can not be tested this way
-        # embeddings_hash = hashlib.sha256(content['embeddings'].encode()).hexdigest()
-        # expected_embeddings_hash = '8542209aac05540b5604e9e7e7a60e5061f2b653e4592e86624d132570c1d08f'
-        # self.assertEqual(expected_embeddings_hash, embeddings_hash)
-        self.assertDictEqual({'label': 'ang', 'score': 1.0},
-                             content['emotion'])
-        self.assertDictEqual({'label': 'Chinese_Hongkong', 'score': 0.36074525117874146},
-                             content['language'])
+    def matrix(self, embeddings):
+        res = self.post("/similarity_matrix", embeddings=json.dumps(embeddings))
+        self.assertEqual(200, res.status_code, res.get_data(as_text=True))
+        return res.json["similarity_matrix"]
 
-    def test_separate_one_speaker(self):
-        signals = [
-            TestFiles.SPEAKER1,
-            TestFiles.SPEAKER2,
-            TestFiles.SPEAKER3,
-            TestFiles.SPEAKER1_W_NOISE  # TODO: This finds 2 speakers, not one
-        ]
-        for s in signals:
-            with self.subTest(signal=s):
-                response = self._send_file('/separate', s)
-                self.assertEqual(200, response.status_code)
-                content = response.json
-                self.assertEqual(1, content['speakerCount']['value'])
+    def test_hello(self):
+        res = self.client.get("/")
+        self.assertEqual(200, res.status_code)
+        self.assertEqual("Hello speechbrain!", res.get_data(as_text=True))
 
-    def test_separate_three_speakers(self):
-        response = self._send_file('/separate',
-                                   TestFiles.THREE_SPEAKERS_W_NOISE)
-        self.assertEqual(200, response.status_code)
-        content = response.json
-        self.assertEqual(3, content['speakerCount']['value'])
-        # TODO: Implement separation check
+    # classify
+
+    def test_classify_returns_language_and_emotion(self):
+        for audio in (S1, S2, S3, NOISE):
+            with self.subTest(audio=audio.name[:2]):
+                res = self.post("/", audio)
+                self.assertEqual(200, res.status_code, res.get_data(as_text=True))
+                emotion, language = res.json["emotion"], res.json["language"]
+                self.assertIn(emotion["label"], EMOTIONS)
+                self.assertGreaterEqual(emotion["score"], 0.0)
+                self.assertLessEqual(emotion["score"], 1.0 + 1e-6)
+                self.assertIsInstance(language["label"], str)
+                self.assertTrue(language["label"])
+                self.assertIsInstance(language["score"], float)
+
+    def test_classify_without_file_is_400(self):
+        self.assertEqual(400, self.post("/").status_code)
+
+    def test_classify_with_non_audio_is_400(self):
+        res = self.client.post(
+            "/",
+            data={"file": (io.BytesIO(b"not audio"), "x.wav")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(400, res.status_code)
+
+    # embeddings
+
+    def test_create_embeddings_returns_base64(self):
+        emb = self.embedding(S1)
+        self.assertIsInstance(emb, str)
+        self.assertGreater(len(base64.standard_b64decode(emb)), 0)
+
+    def test_embeddings_are_stable(self):
+        again = self.post("/create_embeddings", S1).json["embeddings"]
+        m = self.matrix([self.embedding(S1), again])
+        self.assertAlmostEqual(1.0, m[0][1], places=4)
+
+    # similarity matrix
+
+    def test_similarity_matrix_shape(self):
+        audios = (S1, S2, S3)
+        m = self.matrix([self.embedding(a) for a in audios])
+        self.assertEqual(3, len(m))
+        for i in range(3):
+            self.assertEqual(3, len(m[i]))
+            self.assertAlmostEqual(1.0, m[i][i], places=4)
+            for j in range(3):
+                self.assertAlmostEqual(m[i][j], m[j][i], places=6)
+                self.assertGreaterEqual(m[i][j], -1.0 - 1e-6)
+                self.assertLessEqual(m[i][j], 1.0 + 1e-6)
+
+    def test_same_speaker_is_closer_than_others(self):
+        m = self.matrix([self.embedding(a) for a in (S1, S1_NOISE, S2, S3)])
+        same = m[0][1]
+        self.assertGreater(same, m[0][2])
+        self.assertGreater(same, m[0][3])
+
+    # verify speakers
+
+    def test_verify_speakers(self):
+        refs = [self.embedding(S1), self.embedding(S2), ""]
+        res = self.post("/verify_speakers", S1, embeddings=json.dumps(refs))
+        self.assertEqual(200, res.status_code, res.get_data(as_text=True))
+        sims = res.json["similarities"]
+        self.assertEqual(3, len(sims))
+        self.assertAlmostEqual(1.0, sims[0], places=4)
+        self.assertLess(sims[1], sims[0])
+        self.assertIsNone(sims[2])
+        self.assertIsInstance(res.json["embeddings"], str)
+
+    def test_verify_speakers_with_bad_embeddings_is_400(self):
+        res = self.post("/verify_speakers", S1, embeddings="not json")
+        self.assertEqual(400, res.status_code)
+
+    def test_similarity_matrix_with_bad_embeddings_is_400(self):
+        self.assertEqual(400, self.post("/similarity_matrix").status_code)
 
 
-    def test_separate_three_speakers_with_n_speakers(self):
-        response = self._send_file('/separate',
-                                   TestFiles.THREE_SPEAKERS_W_NOISE,
-                                   data={'n_speakers': 3})
-        self.assertEqual(200, response.status_code)
-        content = response.json
-        self.assertEqual(3, content['speakerCount']['value'])
-        tensor_bytes = base64.standard_b64decode(content['signals'].encode())
-        tensor = pickle.loads(tensor_bytes)
-        self.assertIsInstance(tensor, torch.Tensor)
-        # TODO: ecc.
-
-    def test_count_speakers(self):
-        test_cases = [
-            [TestFiles.SPEAKER1, 1],
-            [TestFiles.SPEAKER2, 1],
-            [TestFiles.SPEAKER3, 1],
-            [TestFiles.THREE_SPEAKERS_W_NOISE, 3],
-        ]
-        for s, expected_result in test_cases:
-            with self.subTest(signal=s):
-                response = self._send_file('/count_speakers', s)
-                self.assertEqual(200, response.status_code)
-                content = response.json
-                self.assertEqual(expected_result, content['speakerCount']['value'])
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

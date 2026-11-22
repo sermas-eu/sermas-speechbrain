@@ -26,23 +26,17 @@ def _to_dict(score, label) -> dict:
 @app.before_request
 def log_request_info():
     app.logger.info("%s %s", request.method, request.path)
-    app.logger.debug("Headers: %s", request.path)
 
 
 @app.route("/", methods=["POST"])
-def all():
-    logging.warning("DEPRECATED Classify request.")
+def classify():
 
     audio = _get_audio_from_request()
 
-    try:
-        return {
-            "language": models.get_language(audio),
-            "emotion": models.get_emotion(audio),
-            # 'speakerId': speakerid(audio),  # This cannot be done without a trained model
-        }
-    except Exception as e:
-        return f"Error processing classify request {e}", 500
+    return {
+        "language": models.get_language(audio),
+        "emotion": models.get_emotion(audio),
+    }
 
 
 def _get_audio_from_request():
@@ -53,7 +47,7 @@ def _get_audio_from_request():
         raise exceptions.BadRequest("No file selected")
     try:
         audio = core.Audio.from_file(audiofile)
-    except Exception as e:  # TODO: Exception too broad
+    except Exception as e:  # any decoding failure is the caller's input
         raise exceptions.BadRequest(f"Error reading file {e}")
     return audio
 
@@ -61,6 +55,12 @@ def _get_audio_from_request():
 @app.route("/", methods=["GET"])
 def hello_world():
     return "Hello speechbrain!", 200
+
+
+@app.errorhandler(exceptions.InternalServerError)
+def internal_error(e):
+    logger.exception("Request failed: %s", request.path)
+    return {"error": True, "message": "Internal error"}, 500
 
 
 @app.errorhandler(404)
@@ -72,85 +72,56 @@ def page_not_found(e):
     }, 404
 
 
-@app.route("/separate", methods=["POST"])
-def separate():
-
-    audio = _get_audio_from_request()
-
-    n_speakers = request.form.get("n_speakers")
-    if n_speakers:
-        n_speakers = int(n_speakers)
-        speaker_count = {"value": n_speakers, "probability": 1.0}
-    else:
-        speaker_count = models.get_speaker_count(audio)
-        n_speakers = speaker_count["value"]
-
-    if n_speakers < 2:
-        return {"speakerCount": speaker_count}, 200
-
-    if n_speakers > 3:
-        raise exceptions.BadRequest(f"{n_speakers} speakers detected. Max is 3")
-
-    signals = models.separate(audio, n_speakers)
-    return {"signals": signals, "speakerCount": speaker_count}, 200
+def _get_embeddings_from_request() -> list:
+    """The `embeddings` form field: a JSON list of base64 embeddings ("" for none)."""
+    raw = request.form.get("embeddings")
+    if raw is None:
+        raise exceptions.BadRequest("No embeddings given")
+    try:
+        embeddings = json.loads(raw)
+    except ValueError as e:
+        raise exceptions.BadRequest(f"embeddings is not JSON: {e}")
+    if not isinstance(embeddings, list) or not all(
+        isinstance(e, str) for e in embeddings
+    ):
+        raise exceptions.BadRequest("embeddings must be a list of strings")
+    return embeddings
 
 
-@app.route("/count_speakers", methods=["POST"])
-def count_speakers():
-    audio = _get_audio_from_request()
-    speaker_count = models.get_speaker_count(audio)
-    return {"speakerCount": speaker_count}, 200
+def _decode(embedding: str):
+    try:
+        return models.embedding_from_base64(embedding)
+    except Exception as e:
+        raise exceptions.BadRequest(f"Invalid embedding: {e}")
 
 
 @app.route("/verify_speakers", methods=["POST"])
 def verify_speakers():
-    try:
-        audio = _get_audio_from_request()
-        audio_embedding = models.compute_embedding(audio)
-
-        embeddings = request.form.get("embeddings")
-        ref_embeddings_base64 = json.loads(embeddings)
-        res = []
-        for emb in ref_embeddings_base64:
-            if emb == "":
-                res.append(None)
-                continue
-            ref_embeddings = models.embedding_from_base64(emb)
-            res.append(models.similarity(ref_embeddings, audio_embedding))
-
-        return {
-            "similarities": res,
-            "embeddings": models.embedding_to_base64(audio_embedding),
-        }, 200
-    except Exception as e:
-        print(e)
-        return f"Error processing verify request {e}", 500
+    audio = _get_audio_from_request()
+    refs = [_decode(e) if e else None for e in _get_embeddings_from_request()]
+    audio_embedding = models.compute_embedding(audio)
+    return {
+        "similarities": [
+            None if ref is None else models.similarity(ref, audio_embedding)
+            for ref in refs
+        ],
+        "embeddings": models.embedding_to_base64(audio_embedding),
+    }, 200
 
 
 @app.route("/similarity_matrix", methods=["POST"])
 def similarity_matrix():
-    try:
-        embeddings = request.form.get("embeddings")
-        matrix = models.similarity_matrix(json.loads(embeddings))
-        return {"similarity_matrix": matrix}, 200
-    except Exception as e:
-        return f"Error processing verify request {e}", 500
+    embeddings = _get_embeddings_from_request()
+    if not all(embeddings):
+        raise exceptions.BadRequest("empty embedding in the list")
+    vectors = [_decode(e) for e in embeddings]
+    return {"similarity_matrix": models.similarity_matrix(vectors)}, 200
 
 
 @app.route("/create_embeddings", methods=["POST"])
 def create_embeddings():
-
     audio = _get_audio_from_request()
-
-    try:
-        audio_embedding = models.compute_embedding(audio)
-        return {
-            "embeddings": models.embedding_to_base64(
-                audio_embedding
-            ),  # TODO: Implement resample
-        }
-    except Exception as e:
-        return f"Error processing create embedding request {e}", 500
+    return {"embeddings": models.embedding_to_base64(models.compute_embedding(audio))}
 
 
 if __name__ == "__main__":
