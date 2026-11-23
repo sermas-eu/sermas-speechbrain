@@ -87,6 +87,13 @@ class SpeechModelWrapper:
             savedir=self.get_speechbrain_cache_path(
                 "emotion-recognition-wav2vec2-IEMOCAP"
             ),
+            # The model's hparams download the wav2vec2 base model to a relative
+            # `wav2vec2_checkpoints`, i.e. into the working directory, outside the cache.
+            overrides={
+                "wav2vec2": {
+                    "save_path": self.get_speechbrain_cache_path("wav2vec2_checkpoints")
+                }
+            },
             run_opts=self.run_opts,
         )
 
